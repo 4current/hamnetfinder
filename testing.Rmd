@@ -10,25 +10,26 @@ information.
 ```{r get_spreadsheet}
 library(readxl)
 library(httr)
+
+get_todays_ham_nets <- function(zone) {
+  thisDay <- Sys.Date()
+  data_file <- paste0(zone,"_ham_nets_",thisDay,".Rda")
+  if ( !file.exists(data_file) ) {
+    xlsx_url <- paste0('https://www.theweatherwonder.com/Net_List_Spreadsheet_',zone,'_Time.xlsx')
+    GET(xlsx_url, write_disk(tf <- tempfile(fileext = ".xlsx")))
+    test <- read_excel(tf, sheet = 1)
+    col_type_vec <- c("text", rep("guess", times=7), "date", "skip", rep("text", times=3),"skip")
+    xlsx <- read_excel(tf, sheet=1, col_types=col_type_vec[1:ncol(test)], skip =1)
+    xlsx[,2:8] <- !is.na(xlsx[,2:8])
+    xlsx[[zone]] <- format(xlsx[[zone]], format='%-I:%M %p')
+    save(xlsx, file=data_file)
+  }
+}
+
+
 zones <- c("Eastern","Mountain","Central","Pacific")
-zone <- zones[1]
-xlsx_url <- paste0('https://www.theweatherwonder.com/Net_List_Spreadsheet_',zone,'_Time.xlsx')
-GET(xlsx_url, write_disk(tf <- tempfile(fileext = ".xlsx")))
-
-test <- read_excel(tf, sheet = 1)
-col_type_vec <- c("text", rep("guess", times=7), "date", "skip", rep("text", times=3),"skip")
-xlsx <- read_excel(tf, sheet=1, col_types=col_type_vec[1:ncol(test)], skip =1)
-str(xlsx)
-```
-
-
-
-```{r clean_data}
-df <- data.frame(xlsx)
-df[,2:8] <- !is.na(xlsx[,2:8])
-df[[zone]] <- format(xlsx[[zone]], format='%-I:%M %p')
-str(df)
-setwd('/home/rich/Documents/hamnetfinder')
-save(df, file = paste0(zone,"_ham_net_data.Rda"))
+get_todays_ham_nets(zones[4])
 
 ```
+
+
