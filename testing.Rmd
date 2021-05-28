@@ -1,0 +1,34 @@
+---
+title: "hamnetfinder"
+output: html_notebook
+---
+
+I was thinking it would be interested to try and develop a shiny app that
+scrapes and presents ham nets with their times and frequencies and other 
+information.
+
+```{r get_spreadsheet}
+library(readxl)
+library(httr)
+zones <- c("Eastern","Mountain","Central","Pacific")
+zone <- zones[1]
+xlsx_url <- paste0('https://www.theweatherwonder.com/Net_List_Spreadsheet_',zone,'_Time.xlsx')
+GET(xlsx_url, write_disk(tf <- tempfile(fileext = ".xlsx")))
+
+test <- read_excel(tf, sheet = 1)
+col_type_vec <- c("text", rep("guess", times=7), "date", "skip", rep("text", times=3),"skip")
+xlsx <- read_excel(tf, sheet=1, col_types=col_type_vec[1:ncol(test)], skip =1)
+str(xlsx)
+```
+
+
+
+```{r clean_data}
+df <- data.frame(xlsx)
+df[,2:8] <- !is.na(xlsx[,2:8])
+df[[zone]] <- format(xlsx[[zone]], format='%-I:%M %p')
+str(df)
+setwd('/home/rich/Documents/hamnetfinder')
+save(df, file = paste0(zone,"_ham_net_data.Rda"))
+
+```

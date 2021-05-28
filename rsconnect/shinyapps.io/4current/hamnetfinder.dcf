@@ -1,0 +1,13 @@
+name: hamnetfinder
+title: hamnetfinder
+username:
+account: 4current
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4199851
+bundleId: 4651147
+url: https://4current.shinyapps.io/hamnetfinder/
+when: 1622210437.18456
+lastSyncTime: 1622210437.18458
+asMultiple: FALSE
+asStatic: FALSE
