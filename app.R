@@ -15,7 +15,8 @@ library(httr)
 ui <- fluidPage(
 
     # Application title
-    titlePanel("Show Ham Nets"),
+    titlePanel("Show D-Star, Echolink and D-Rats Nets"),
+    htmlOutput("infotext"),
 
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
@@ -44,6 +45,16 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output) {
   days <- c("Su","Mo","Tu","We","Th","Fr","Sa")
+  src_page <- "https://www.theweatherwonder.com/elk.htm"
+  wx4qz_qrz_page <- "https://www.qrz.com/lookup?tquery=WX4QZ&mode=callsign"
+  output$infotext <- renderText(
+    as.character(
+      span("This data is taken from", a(src_page,href=src_page),
+          "where you can download the complete spreadsheets, maintained courtesyof", 
+          a("WX4QZ", href=wx4qz_qrz_page)
+        )
+      )
+    )
   
   get_todays_ham_nets <- function(zone) {
     # Gets today's xlsx file by time zone if it is not already on disk
@@ -54,10 +65,12 @@ server <- function(input, output) {
       xlsx_url <- paste0('https://www.theweatherwonder.com/Net_List_Spreadsheet_',zone,'_Time.xlsx')
       GET(xlsx_url, write_disk(tf <- tempfile(fileext = ".xlsx")))
       test <- read_excel(tf, sheet = 1)
-      col_type_vec <- c("text", rep("guess", times=7), "date", "skip", rep("text", times=3),"skip")
+      col_type_vec <- c("text", rep("guess", times=7), "date", "date", rep("text", times=3),"skip")
       xlsx <- read_excel(tf, sheet=1, col_types=col_type_vec[1:ncol(test)], skip =1)
       xlsx[,2:8] <- !is.na(xlsx[,2:8])
       xlsx[[zone]] <- format(xlsx[[zone]], format='%-I:%M %p')
+      xlsx[["UTC"]] <- format(xlsx[["UTC"]], format='%H%M')
+      xlsx[["Node"]] <- gsub("\\s", "", xlsx[["Node"]])
       save(xlsx, file=data_file)
     }
     data_file
@@ -71,7 +84,7 @@ server <- function(input, output) {
     load(file = get_todays_ham_nets(input$zone))
     byMode <- xlsx[xlsx["Mode"]==input$modeFilter,]
     byDayAndMode <- byMode[byMode[days[as.POSIXlt(input$date)$wday + 1]]==TRUE,]
-    byDayAndMode[,c(input$zone, "Net name","Mode","Node","Comment")]
+    byDayAndMode[,c(input$zone, "UTC", "Net name","Mode","Node","Comment")]
   }, na="")
 }
 
