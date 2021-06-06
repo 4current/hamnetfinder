@@ -68,9 +68,15 @@ server <- function(input, output) {
       col_type_vec <- c("text", rep("guess", times=7), "date", "date", rep("text", times=3),"skip")
       xlsx <- read_excel(tf, sheet=1, col_types=col_type_vec[1:ncol(test)], skip =1)
       xlsx[,2:8] <- !is.na(xlsx[,2:8])
-      xlsx[[zone]] <- format(xlsx[[zone]], format='%-I:%M %p')
+      xlsx[[zone]] <- format(xlsx[[zone]], format='%-I:%M_%p')
       xlsx[["UTC"]] <- format(xlsx[["UTC"]], format='%H%M')
       xlsx[["Node"]] <- gsub("\\s", "", xlsx[["Node"]])
+      xlsx[["Node"]] <- gsub("&", " ", xlsx[["Node"]])
+      xlsx[["Node"]] <- sub("^([1-9][A-Z])", "REF00\\1", xlsx[["Node"]])
+      xlsx[["Node"]] <- sub("^([1-9][0-9][A-Z])", "REF0\\1", xlsx[["Node"]])
+      xlsx[["Node"]] <- sub("^([1-9][0-9]{2}[A-Z])", "REF\\1", xlsx[["Node"]])
+      xlsx[["Node"]] <- sub("^REF([1-9][A-Z])", "REF00\\1", xlsx[["Node"]])
+      xlsx[["Node"]] <- sub("^REF([1-9][0-9][A-Z])", "REF0\\1", xlsx[["Node"]])
       save(xlsx, file=data_file)
     }
     data_file
@@ -85,7 +91,7 @@ server <- function(input, output) {
     byMode <- xlsx[xlsx["Mode"]==input$modeFilter,]
     byDayAndMode <- byMode[byMode[days[as.POSIXlt(input$date)$wday + 1]]==TRUE,]
     byDayAndMode[,c(input$zone, "UTC", "Net name","Mode","Node","Comment")]
-  }, na="")
+  }, na="", align='r???r?')
 }
 
 # Run the application 
