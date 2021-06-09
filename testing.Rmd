@@ -36,7 +36,34 @@ library(httr)
 ```{r}
 
 load(file = get_todays_ham_nets("Pacific"))
+xlsx
 
+```
+```{r}
+library(httr)
+library(rvest)
+library(dplyr)
+
+
+search_client_url <- "http://www.arrl.org/resources/nets/client/netsearch.html"
+vals <- list(
+  netype = "%L%",
+  state = "Alabama",
+  netname = "",
+  dow = "%%",
+  freq = "0-1000000",
+  ntfs = "%%"
+)
+html <- read_html(search_client_url)
+search <- html_form(html)[[1]] %>% html_form_set(!!!vals)
+resp <- html_form_submit(search)
+net_table <- read_html(resp) %>% 
+  html_element("table") %>% 
+  html_table() %>%
+  select(-5) %>%
+  rename("Local Days" = ends_with("Local Days")) %>%
+  select("Local Time", "Net Name", "Frequency")
+print(net_table)
 
 ```
 

@@ -13,33 +13,42 @@ library(httr)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
-
-    # Application title
-    titlePanel("Show D-Star, Echolink and D-Rats Nets"),
-    htmlOutput("infotext"),
-
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-          selectInput(
-            "modeFilter",
-            "Mode",
-            c("D-Star","D-Rats", "Echolink")),
-          selectInput(
-            "zone",
-            "Time Zone",
-            c("Eastern","Central","Mountain","Pacific")),
-          dateInput("date", "Day", value = NULL, min = NULL, max = NULL,
-              format = "yyyy-mm-dd", startview = "month", weekstart = 0,
-              language = "en", width = NULL)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-          strong(h4(textOutput("dayLabel"))),
-          tableOutput("listings")
-        )
+  
+  # Application title
+  titlePanel("Ham Net Finder"),
+  
+  tabsetPanel(
+    tabPanel(
+      "D-Star, Echolink and D-Rats Nets",
+        sidebarLayout(
+          sidebarPanel(
+            selectInput(
+              "modeFilter",
+              "Mode",
+              c("D-Star","D-Rats", "Echolink")),
+            selectInput(
+              "zone",
+              "Time Zone",
+              c("Eastern","Central","Mountain","Pacific")),
+            dateInput("date", "Day", value = NULL, min = NULL, max = NULL,
+                      format = "yyyy-mm-dd", startview = "month", weekstart = 0,
+                      language = "en", width = NULL)
+          ),
+          
+          # Show a plot of the generated distribution
+          mainPanel(
+            strong(h4(textOutput("dayLabel"))),
+            htmlOutput("infotext"),
+            tableOutput("listings")
+          )
+      )
+    ),
+    tabPanel(
+      "ARRL Net Search",
+      "Under Construction"
     )
+    
+  )
 )
 
 # Define server logic required to draw a histogram
@@ -50,8 +59,9 @@ server <- function(input, output) {
   output$infotext <- renderText(
     as.character(
       span("This data is taken from", a(src_page,href=src_page),
-          "where you can download the complete spreadsheets, maintained courtesyof", 
-          a("WX4QZ", href=wx4qz_qrz_page)
+          ", where you can download the complete spreadsheets, maintained courtesy of", 
+          a("WX4QZ", href=wx4qz_qrz_page),
+          "."
         )
       )
     )
@@ -83,15 +93,19 @@ server <- function(input, output) {
   }
   
   output$dayLabel <- reactive({
-    format(input$date, format="%A, %B %-d, %Y")
+    paste(
+      input$modeFilter,
+      "nets for",
+      format(input$date, format="%A, %B %-d, %Y")
+    )
   })
   
   output$listings <- renderTable({
     load(file = get_todays_ham_nets(input$zone))
     byMode <- xlsx[xlsx["Mode"]==input$modeFilter,]
     byDayAndMode <- byMode[byMode[days[as.POSIXlt(input$date)$wday + 1]]==TRUE,]
-    byDayAndMode[,c(input$zone, "UTC", "Net name","Mode","Node","Comment")]
-  }, na="", align='r???r?')
+    byDayAndMode[,c(input$zone, "UTC", "Net name","Node","Comment")]
+  }, na="", align='r??r?')
 }
 
 # Run the application 
