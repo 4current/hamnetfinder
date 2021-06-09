@@ -45,7 +45,41 @@ ui <- fluidPage(
     ),
     tabPanel(
       "ARRL Net Search",
-      "Under Construction"
+     sidebarLayout(
+        sidebarPanel(
+          selectInput(
+            "arrl_state",
+            "State",
+            state.name
+          ),
+          selectInput(
+            "arrl_band",
+            "Band",
+            c("160M"="1800-2000-HF",
+              "80M"="3500-4000-HF",
+              "40M"="7000-7300-HF",
+              "30M"="10100-10150-HF",
+              "20M"="14000-14350-HF",
+              "17M"="18068-18168-HF",
+              "15M"="21000-21450-HF",
+              "10M"="28000-29700-HF",
+              "6M"="50-54-VHF",
+              "2M"="144-148-VHF",
+              "1.25M"="222-225-VHF",
+              "70CM"="420-450-UHF",
+              "23CM"="1240-1300-UHF")
+          ),
+          dateInput("arrl_date", "Day", value = NULL, min = NULL, max = NULL,
+                    format = "yyyy-mm-dd", startview = "month", weekstart = 0,
+                    language = "en", width = NULL)
+        ),
+        # Show a plot of the generated distribution
+        mainPanel(
+          strong(h4(textOutput("arrl_heading"))),
+          htmlOutput("arrl_info"),
+          tableOutput("arrl_table")
+        )
+      )
     )
     
   )
@@ -65,6 +99,15 @@ server <- function(input, output) {
         )
       )
     )
+  
+  arrl_src <- "http://www.arrl.org/arrl-net-directory-search"
+  output$arrl_info <- renderText(
+    as.character(
+      span("This data is queried from", a(arrl_src,href=arrl_src),
+           ", where you will find more query features.", "Dy = Daily, Sn = Sunday"
+      )
+    )
+  )
   
   get_todays_ham_nets <- function(zone) {
     # Gets today's xlsx file by time zone if it is not already on disk
@@ -92,6 +135,37 @@ server <- function(input, output) {
     data_file
   }
   
+  query_arrl_nets <- function(dayFilter, stateFilter, bandFilter) {
+    search_client_url <- "http://www.arrl.org/resources/nets/client/netsearch.html"
+    vals <- list(
+      netype = "%L%",
+      state = stateFilter,
+      netname = "",
+      dow = dayFilter,
+      freq = bandFilter,
+      ntfs = "%%"
+    )
+    html <- read_html(search_client_url)
+    search <- html_form(html)[[1]] %>% html_form_set(!!!vals)
+    resp <- html_form_submit(search)
+    net_table <- read_html(resp) %>% 
+      html_element("table") %>% 
+      html_table() %>%
+      select(-5) %>%
+      rename("Local Days" = ends_with("Local Days")) %>%
+      select("Local Time", "Net Name", "Frequency", "Local Days")
+    net_table
+  }
+  
+  output$arrl_heading <- reactive({
+    paste(
+      "Local Nets for",
+      format(input$arrl_date, format="%A, %B %-d, %Y"),
+      "in",
+      input$arrl_state
+    )
+  })
+  
   output$dayLabel <- reactive({
     paste(
       input$modeFilter,
@@ -106,6 +180,15 @@ server <- function(input, output) {
     byDayAndMode <- byMode[byMode[days[as.POSIXlt(input$date)$wday + 1]]==TRUE,]
     byDayAndMode[,c(input$zone, "UTC", "Net name","Node","Comment")]
   }, na="", align='r??r?')
+  
+  output$arrl_table <- renderTable({
+    days <- c("%Sn%","%M%","%T","%W%","%Th%","%F%","%S")
+    query_arrl_nets(
+      days[as.POSIXlt(input$arrl_date)$wday + 1],
+      input$arrl_state,
+      input$arrl_band
+    )
+  })
 }
 
 # Run the application 
