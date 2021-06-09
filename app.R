@@ -10,6 +10,8 @@
 library(shiny)
 library(readxl)
 library(httr)
+library(dplyr)
+library(rvest)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -159,7 +161,7 @@ server <- function(input, output) {
   
   output$arrl_heading <- reactive({
     paste(
-      "Local Nets for",
+      "Local nets for",
       format(input$arrl_date, format="%A, %B %-d, %Y"),
       "in",
       input$arrl_state
