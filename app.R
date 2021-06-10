@@ -91,7 +91,8 @@ ui <- fluidPage(
               "2M"="144-148-VHF",
               "1.25M"="222-225-VHF",
               "70CM"="420-450-UHF",
-              "23CM"="1240-1300-UHF")
+              "23CM"="1240-1300-UHF"),
+            selected = "3500-4000-HF"
           ),
           dateInput("arrl_date", "Day", value = NULL, min = NULL, max = NULL,
                     format = "yyyy-mm-dd", startview = "month", weekstart = 0,
