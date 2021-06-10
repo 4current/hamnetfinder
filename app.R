@@ -9,12 +9,34 @@
 
 library(shiny)
 library(readxl)
-library(httr)
+library(httr) 
+library(sf)
+library(spData)
 library(dplyr)
 library(rvest)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
+  
+  tags$script('
+  $(document).ready(function () {
+    navigator.geolocation.getCurrentPosition(onSuccess, onError);
+
+    function onError (err) {
+    Shiny.onInputChange("geolocation", false);
+    }
+    
+   function onSuccess (position) {
+      setTimeout(function () {
+          var coords = position.coords;
+          console.log(coords.latitude + ", " + coords.longitude);
+          Shiny.onInputChange("geolocation", true);
+          Shiny.onInputChange("lat", coords.latitude);
+          Shiny.onInputChange("long", coords.longitude);
+      }, 1100)
+  }
+  });
+  '),
   
   # Application title
   titlePanel("Ham Net Finder"),
@@ -88,7 +110,7 @@ ui <- fluidPage(
 )
 
 # Define server logic required to draw a histogram
-server <- function(input, output) {
+server <- function(input, output, session) {
   days <- c("Su","Mo","Tu","We","Th","Fr","Sa")
   src_page <- "https://www.theweatherwonder.com/elk.htm"
   wx4qz_qrz_page <- "https://www.qrz.com/lookup?tquery=WX4QZ&mode=callsign"
@@ -101,6 +123,39 @@ server <- function(input, output) {
         )
       )
     )
+  
+  ## pointsDF: A data.frame whose first column contains longitudes and
+  ##           whose second column contains latitudes.
+  ##
+  ## states:   An sf MULTIPOLYGON object with 50 states plus DC.
+  ##
+  ## name_col: Name of a column in `states` that supplies the states'
+  ##           names.
+  gps_to_state <- function(latitude,
+                           longitude,
+                           states = spData::us_states,
+                           name_col = "NAME") {
+    ## Convert points data.frame to an sf POINTS object
+    pts <- st_as_sf(data_frame(long=longitude,lat=latitude), coords = 1:2, crs = 4326)
+    
+    ## Transform spatial data to some planar coordinate system
+    ## (e.g. Web Mercator) as required for geometric operations
+    states <- st_transform(states, crs = 3857)
+    pts <- st_transform(pts, crs = 3857)
+    
+    ## Find names of state (if any) intersected by each point
+    state_names <- states[[name_col]]
+    ii <- as.integer(st_intersects(pts, states))
+    state_names[ii]
+  }
+  
+  observe(
+    if (!(is.null(input$lat) || is.null(input$long)))  {
+      updateSelectInput(session, "arrl_state",
+                        selected = gps_to_state(input$lat, input$long)
+      )
+    }
+  )
   
   arrl_src <- "http://www.arrl.org/arrl-net-directory-search"
   output$arrl_info <- renderText(

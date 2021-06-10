@@ -66,4 +66,26 @@ net_table <- read_html(resp) %>%
 print(net_table)
 
 ```
+```{r}
+library(spData)  lonlat_to_state <- function(pointsDF,
+                              states = spData::us_states,
+                              name_col = "NAME") {
+    ## Convert points data.frame to an sf POINTS object
+    pts <- st_as_sf(pointsDF, coords = 1:2, crs = 4326)
+    
+    ## Transform spatial data to some planar coordinate system
+    ## (e.g. Web Mercator) as required for geometric operations
+    states <- st_transform(states, crs = 3857)
+    pts <- st_transform(pts, crs = 3857)
+    
+    ## Find names of state (if any) intersected by each point
+    state_names <- states[[name_col]]
+    ii <- as.integer(st_intersects(pts, states))
+    state_names[ii]
+  }
 
+
+states <- spData::us_states
+loc <- (lat=c(37.59), long=c(-77.46))
+states[["NAME"]]
+```
