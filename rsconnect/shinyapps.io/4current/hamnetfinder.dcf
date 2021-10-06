@@ -5,10 +5,10 @@ account: 4current
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 4199851
-bundleId: 4697881
+bundleId: 4701204
 url: https://4current.shinyapps.io/hamnetfinder/
-when: 1623261356.52384
-lastSyncTime: 1623261356.52385
+when: 1623332892.60558
+lastSyncTime: 1623332892.6056
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: Eastern_ham_nets_2021-06-09.Rda|testing.Rmd
+ignoredFiles: Eastern_ham_nets_2021-06-09.Rda|Eastern_ham_nets_2021-06-10.Rda|testing.nb.html|testing.Rmd

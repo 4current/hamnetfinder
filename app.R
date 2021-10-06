@@ -14,6 +14,8 @@ library(sf)
 library(spData)
 library(dplyr)
 library(rvest)
+library(rdrop2)
+
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -79,20 +81,27 @@ ui <- fluidPage(
           selectInput(
             "arrl_band",
             "Band",
-            c("160M"="1800-2000-HF",
-              "80M"="3500-4000-HF",
-              "40M"="7000-7300-HF",
-              "30M"="10100-10150-HF",
-              "20M"="14000-14350-HF",
-              "17M"="18068-18168-HF",
-              "15M"="21000-21450-HF",
-              "10M"="28000-29700-HF",
-              "6M"="50-54-VHF",
-              "2M"="144-148-VHF",
-              "1.25M"="222-225-VHF",
-              "70CM"="420-450-UHF",
-              "23CM"="1240-1300-UHF"),
-            selected = "3500-4000-HF"
+            list(`HF` = c(
+                  "160M",
+                  "80M",
+                  "40M",
+                  "30M",
+                  "20M",
+                  "17M",
+                  "15M",
+                  "10M"
+                  ),
+                `VHF` = c(
+                  "6M",
+                  "2M",
+                  "1.25M"
+                  ),
+                `UHF` = c(
+                  "70CM",
+                  "23CM"
+                  )
+                ),
+            selected = "80M"
           ),
           dateInput("arrl_date", "Day", value = NULL, min = NULL, max = NULL,
                     format = "yyyy-mm-dd", startview = "month", weekstart = 0,
@@ -113,7 +122,8 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
   days <- c("Su","Mo","Tu","We","Th","Fr","Sa")
-  src_page <- "https://www.theweatherwonder.com/elk.htm"
+  root_page <- "http://www.wx4qz.net"
+  src_page <- paste("http://www.wx4qz.net", "elk.htm", sep="/")
   wx4qz_qrz_page <- "https://www.qrz.com/lookup?tquery=WX4QZ&mode=callsign"
   output$infotext <- renderText(
     as.character(
@@ -171,36 +181,109 @@ server <- function(input, output, session) {
     # Gets today's xlsx file by time zone if it is not already on disk
     # Always returns the name of the data file
     thisDay <- Sys.Date()
-    data_file <- paste0(zone,"_ham_nets_",thisDay,".Rda")
-    if ( !file.exists(data_file) ) {
-      xlsx_url <- paste0('https://www.theweatherwonder.com/Net_List_Spreadsheet_',zone,'_Time.xlsx')
-      GET(xlsx_url, write_disk(tf <- tempfile(fileext = ".xlsx")))
-      test <- read_excel(tf, sheet = 1)
-      col_type_vec <- c("text", rep("guess", times=7), "date", "date", rep("text", times=3),"skip")
-      xlsx <- read_excel(tf, sheet=1, col_types=col_type_vec[1:ncol(test)], skip =1)
-      xlsx[,2:8] <- !is.na(xlsx[,2:8])
-      xlsx[[zone]] <- format(xlsx[[zone]], format='%-I:%M_%p')
-      xlsx[["UTC"]] <- format(xlsx[["UTC"]], format='%H%M')
-      xlsx[["Node"]] <- gsub("\\s", "", xlsx[["Node"]])
-      xlsx[["Node"]] <- gsub("&", " ", xlsx[["Node"]])
-      xlsx[["Node"]] <- sub("^([1-9][A-Z])", "REF00\\1", xlsx[["Node"]])
-      xlsx[["Node"]] <- sub("^([1-9][0-9][A-Z])", "REF0\\1", xlsx[["Node"]])
-      xlsx[["Node"]] <- sub("^([1-9][0-9]{2}[A-Z])", "REF\\1", xlsx[["Node"]])
-      xlsx[["Node"]] <- sub("^REF([1-9][A-Z])", "REF00\\1", xlsx[["Node"]])
-      xlsx[["Node"]] <- sub("^REF([1-9][0-9][A-Z])", "REF0\\1", xlsx[["Node"]])
-      save(xlsx, file=data_file)
+    data_file_base <- paste0("ham_nets_",thisDay,".Rda")
+    data_file <- paste(zone, data_file_base, sep = "_")
+    data_file_mask <- paste(zone,"ham_nets_*.Rda", sep = "_")
+
+    drop_token <- readRDS("droptoken.rds")
+    drop_root <- "/ham_net_finder"
+    drop_zone <- paste(drop_root, zone, sep="/")
+    drop_file <- paste(drop_zone, data_file_base, sep = "/")
+    
+    if ( file.exists(data_file) ) {
+      # file exists, so just return the reference
+      return(data_file)
     }
-    data_file
+    
+    # file does not exist, so:
+    
+    # clean up any old files
+    unlink(data_file_mask)
+    
+    if ( drop_exists(drop_file, dtoken = drop_token) ) {
+      # file exists on dropbox, so download it
+      drop_download(drop_file, local_path = data_file,
+                    overwrite = TRUE, dtoken = drop_token)
+      return(data_file)
+    }
+    
+    # file does not exist on dropbox
+    if ( !drop_exists(drop_root, dtoken = drop_token) ) {
+      drop_create(drop_root)
+    }
+    
+    if ( !drop_exists(drop_zone, dtoken = drop_token) ) {
+      drop_create(drop_zone)
+    }
+    
+    # Clean up any old files for zone
+    drop_objects <- drop_dir(drop_zone, dtoken = drop_token)
+    if (length(drop_objects) > 0) {
+      for (filepath in drop_objects$path_display) {
+        drop_delete(filepath, dtoken = drop_token)
+      }
+    }
+        
+    # Create daily file for zone locally
+    xlsx_url <-
+      paste0(root_page, '/Net_List_Spreadsheet_', zone, '_Time.xlsx')
+    GET(xlsx_url, write_disk(tf <- tempfile(fileext = ".xlsx")))
+    test <- read_excel(tf, sheet = 1)
+    col_type_vec <-
+      c("text",
+        rep("guess", times = 7),
+        "date",
+        "date",
+        rep("text", times = 3),
+        "skip")
+    xlsx <-
+      read_excel(tf,
+                 sheet = 1,
+                 col_types = col_type_vec[1:ncol(test)],
+                 skip = 1)
+    xlsx[, 2:8] <- !is.na(xlsx[, 2:8])
+    xlsx[[zone]] <- format(xlsx[[zone]], format = '%-I:%M_%p')
+    xlsx[["UTC"]] <- format(xlsx[["UTC"]], format = '%H%M')
+    xlsx[["Node"]] <- gsub("\\s", "", xlsx[["Node"]])
+    xlsx[["Node"]] <- gsub("&", " ", xlsx[["Node"]])
+    xlsx[["Node"]] <- sub("^([1-9][A-Z])", "REF00\\1", xlsx[["Node"]])
+    xlsx[["Node"]] <- sub("^([1-9][0-9][A-Z])", "REF0\\1", xlsx[["Node"]])
+    xlsx[["Node"]] <- sub("^([1-9][0-9]{2}[A-Z])", "REF\\1", xlsx[["Node"]])
+    xlsx[["Node"]] <- sub("^REF([1-9][A-Z])", "REF00\\1", xlsx[["Node"]])
+    xlsx[["Node"]] <- sub("^REF([1-9][0-9][A-Z])", "REF0\\1", xlsx[["Node"]])
+    save(xlsx, file = data_file)
+    
+    drop_upload(data_file, path = drop_zone, mode = "overwrite",
+                autorename = FALSE, dtoken = drop_token)
+    
+    return(data_file)
+    
   }
   
   query_arrl_nets <- function(dayFilter, stateFilter, bandFilter) {
+    arrl_band_map <- c(
+      "160M"="1800-2000-HF",
+      "80M"="3500-4000-HF",
+      "40M"="7000-7300-HF",
+      "30M"="10100-10150-HF",
+      "20M"="14000-14350-HF",
+      "17M"="18068-18168-HF",
+      "15M"="21000-21450-HF",
+      "10M"="28000-29700-HF",
+      "6M"="50-54-VHF",
+      "2M"="144-148-VHF",
+      "1.25M"="222-225-VHF",
+      "70CM"="420-450-UHF",
+      "23CM"="1240-1300-UHF"
+      )
+    
     search_client_url <- "http://www.arrl.org/resources/nets/client/netsearch.html"
     vals <- list(
       netype = "%L%",
       state = stateFilter,
       netname = "",
       dow = dayFilter,
-      freq = bandFilter,
+      freq = arrl_band_map[bandFilter],
       ntfs = "%%"
     )
     html <- read_html(search_client_url)
@@ -211,13 +294,15 @@ server <- function(input, output, session) {
       html_table() %>%
       select(-5) %>%
       rename("Local Days" = ends_with("Local Days")) %>%
-      select("Local Time", "Net Name", "Frequency", "Local Days")
+      select("Local Time", "Net Name", "Frequency", "Local Days") %>%
+      arrange("Local Time")
     net_table
   }
   
   output$arrl_heading <- reactive({
     paste(
-      "Local nets for",
+      input$arrl_band,
+      "local nets for",
       format(input$arrl_date, format="%A, %B %-d, %Y"),
       "in",
       input$arrl_state
@@ -237,7 +322,7 @@ server <- function(input, output, session) {
     byMode <- xlsx[xlsx["Mode"]==input$modeFilter,]
     byDayAndMode <- byMode[byMode[days[as.POSIXlt(input$date)$wday + 1]]==TRUE,]
     byDayAndMode[,c(input$zone, "UTC", "Net name","Node","Comment")]
-  }, na="", align='r??r?')
+  }, striped=TRUE, na="", align='r??r?')
   
   output$arrl_table <- renderTable({
     days <- c("%Sn%","%M%","%T","%W%","%Th%","%F%","%S")
@@ -246,7 +331,7 @@ server <- function(input, output, session) {
       input$arrl_state,
       input$arrl_band
     )
-  })
+  }, striped=TRUE, na="", align="r???")
 }
 
 # Run the application 
